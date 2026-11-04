@@ -2,8 +2,9 @@
 
 This sample demonstrates GPU memory sharing among Kubernetes Pods on Amazon
 EKS using compatible NVIDIA GPUs. The validated walkthrough places two
-GPU-memory-bounded Pods on one NVIDIA A10G in a `g5.xlarge` worker. It builds a
-custom EKS 1.36 Amazon Linux 2023 (AL2023) image with the NVIDIA R615 open
+GPU-memory-bounded Pods on one NVIDIA A10G Tensor Core GPU in a `g5.xlarge`
+worker. It builds a custom EKS 1.36 Amazon Linux 2023 (AL2023) image with the
+NVIDIA R615 open
 driver, installs NVIDIA GPU Operator without replacing the image-owned driver
 or toolkit, and deploys KAI Scheduler with the NVIDIA Run:ai GPU Fractioning
 Operator. Other GPU configurations must meet the upstream compatibility
@@ -16,6 +17,10 @@ uses KAI Scheduler and GPU Fractioning Operator, two of the release's four
 modular components. KAI Resource Management and Workload Map are outside this
 walkthrough's scope. Community software does not include NVIDIA enterprise
 support.
+
+This walkthrough installs the modular open-source components, not the complete
+NGC Community Product. Commercial offerings have separate support and licensing
+terms; see the [NVIDIA announcement](https://developer.nvidia.com/blog/nvidia-runai-is-now-open-source-as-part-of-nvidia-dsx-ai-factory-platform/).
 
 > This sample creates billable AWS resources, including an EKS control plane, a
 > NAT gateway, EC2 instances, EBS volumes, and an AMI snapshot. Run the cleanup
@@ -50,7 +55,7 @@ they have not been validated by this sample. The AMI build targets x86_64.
 1. In this sample's NVIDIA device-plugin baseline, sharing is disabled and the
    A10G exposes one integer `nvidia.com/gpu` resource. One whole-GPU Pod runs
    and a second remains Pending.
-2. With two 8 GiB Run:ai memory contracts, both Pods run on the same node and
+2. With two 8 GiB NVIDIA Run:ai memory contracts, both Pods run on the same node and
    GPU UUID.
 3. Each Pod successfully allocates 6 GiB within its contract.
 4. A 9 GiB allocation is rejected inside an 8 GiB contract.
@@ -58,9 +63,26 @@ they have not been validated by this sample. The AMI build targets x86_64.
 
 These are synthetic CUDA memory-allocation tests, not model-serving or
 throughput benchmarks. The baseline does not describe every Kubernetes GPU
-allocation mode: NVIDIA MIG, device-plugin sharing, and Dynamic Resource
-Allocation (DRA) are separate options with different requirements and
-isolation properties.
+allocation mode. NVIDIA MIG and device-plugin sharing configure GPU access;
+Dynamic Resource Allocation (DRA) supplies device-allocation APIs whose sharing
+behavior depends on the driver. KAI Scheduler and GPU Operator also integrate
+with DRA, but this sample uses annotation-based `NvFractions`, not DRA
+`ResourceClaims`.
+
+### Memory limits and compute modes
+
+Device-plugin time-slicing does not isolate replica memory or faults. NVIDIA
+Run:ai GPU Fractioning instead enforces per-container GPU-memory limits. Its
+default `time-slicing` compute mode differs from device-plugin replica sharing;
+the alternative `sm-sharing` mode runs workloads concurrently in a shared error
+domain. NVIDIA documents separate workload error domains for the default mode.
+These are fault-containment properties, not a multi-tenant security boundary.
+See [NVIDIA's compute-mode explanation](https://developer.nvidia.com/blog/memory-enforced-gpu-sharing-in-kubernetes-with-nvidia-cuda-13-4/).
+
+The checked-in workloads leave compute mode at its default. This sample tests
+memory limits, not fault containment, security isolation, `sm-sharing`
+performance, or proportional compute allocation. A memory limit does not
+reserve proportional compute.
 
 ## Prerequisites
 
@@ -213,6 +235,19 @@ The script performs these actions:
    state.
 5. Creates an encrypted custom AMI and records its ID in `.state/ami-id`.
 
+R615 is a short-lived branch and is not GPU Operator 26.7.1's default; see the
+[pinned operator prerequisites](https://github.com/kai-scheduler/gpu-fractioning/blob/v0.1.7/README.md#selecting-the-r615-driver).
+This example keeps the driver and toolkit under AL2023 AMI ownership rather
+than deploying an operator-managed driver container on another operating
+system. The point-in-time lab validation is not a vendor support certification;
+review the [GPU Operator platform matrix](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/platform-support.html)
+when planning production deployment.
+
+`NVIDIA_DRIVER_VERSION` selects the R615 stream, not an exact patch pin. For
+production reproducibility, pin exact packages and the base image in your own
+build, test the resulting compatibility set, and plan a supported driver-branch
+upgrade. Changing this variable alone does not create an exact patch pin.
+
 Set `SOURCE_AMI_ID` or `PACKER_SUBNET_ID` before running the command when you
 need to pin a previously approved base image or use a different builder subnet.
 
@@ -241,6 +276,11 @@ device plugin.
 The script runs a short-lived privileged inspection Pod in this disposable
 environment. It reports the GPU model and memory, driver, toolkit, containerd,
 cgroup filesystem, and NRI socket, and then removes itself.
+
+The pinned fractioning daemons also use privileged containers, host PID access,
+and host mounts for NRI/MPS integration. Treat deployment and configuration of
+these node-level components as privileged administration; do not give ordinary
+workload users control of their sockets or host paths.
 
 ## Step 5 Establish the whole-GPU baseline
 
@@ -298,6 +338,11 @@ Run this command while the two positive-test Pods are still active:
 Expected output includes one `gpu_fractioning_gpu_memory_used_bytes` series for
 each test Pod.
 
+The recorded value `6.704594944e+09` bytes equals 6394 MiB (about 6.24 GiB),
+250 MiB above the probe's 6144 MiB allocation. Metrics can include CUDA context
+and runtime overhead; this experiment does not measure the breakdown of that
+difference. The raw metric remains in bytes.
+
 ## Step 9 Prove the memory limit
 
 ```bash
@@ -318,6 +363,9 @@ fraction-8gi-over-limit   0/1     Completed   <gpu-node>
 
 `Completed` is expected: the probe exits with code 0 only after confirming that
 CUDA rejected the oversized allocation.
+Here `cudaMalloc` returns an out-of-memory error that the probe handles before
+exiting with code 0. This is allocation rejection, not an `OOMKilled`
+container or a test of general fault isolation.
 
 ## Step 10 Clean up
 
@@ -420,6 +468,9 @@ replace a live walkthrough or measure GPU performance.
 - [NVIDIA Run:ai open-source announcement](https://developer.nvidia.com/blog/nvidia-runai-is-now-open-source-as-part-of-nvidia-dsx-ai-factory-platform/)
 - [KAI Scheduler](https://github.com/kai-scheduler/KAI-Scheduler)
 - [GPU Fractioning Operator](https://github.com/kai-scheduler/gpu-fractioning)
+- [Memory-enforced GPU sharing and compute modes](https://developer.nvidia.com/blog/memory-enforced-gpu-sharing-in-kubernetes-with-nvidia-cuda-13-4/)
+- [GPU Fractioning Operator v0.1.7 prerequisites](https://github.com/kai-scheduler/gpu-fractioning/blob/v0.1.7/README.md#prerequisites)
+- [GPU Operator 26.7 platform support](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/26.7/platform-support.html)
 - [Amazon EKS optimized accelerated AMIs](https://docs.aws.amazon.com/eks/latest/userguide/ml-eks-optimized-ami.html)
 - [Retrieve recommended Amazon EKS AMI IDs](https://docs.aws.amazon.com/eks/latest/userguide/retrieve-ami-id.html)
 - [Amazon EKS API endpoint access](https://docs.aws.amazon.com/eks/latest/userguide/config-cluster-endpoint.html)
@@ -429,6 +480,8 @@ replace a live walkthrough or measure GPU performance.
 
 - Muru Bhaskaran, Sr. Specialist Solutions Architect, Amazon Web Services
 - Robert Ferrer, Specialist Solutions Architect, Amazon Web Services
+- Eliuth Triana, NVIDIA
+- Felipe Garcia, NVIDIA
 
 ## Security
 

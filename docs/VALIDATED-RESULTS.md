@@ -12,8 +12,10 @@ stream advanced, the October 22, 2026 run rebuilt the custom AMI and reran the
 complete walkthrough — host stack inspection and every acceptance test — on
 615.71.10. Both the host stack and the acceptance results below were identical
 to the October 15 run except for the driver point release and the GPU UUID. The
-driver value below reflects the current 615-open point release; the October 15,
-2026 results remain valid as the original evidence on 615.71.09.
+driver value below records the October 22 build, not the latest point release
+available from NVIDIA today. The October 15, 2026 results remain the original
+evidence on 615.71.09. Documentation clarifications do not constitute a new
+live validation.
 
 ## Host stack
 
@@ -43,7 +45,18 @@ run (driver 615.71.09) and the October 22, 2026 re-validation (driver
 | Bounded device view | Each Pod saw 8192 MiB | Passed |
 | In-limit allocation | Each Pod allocated 6144 MiB | Passed |
 | Over-limit allocation | A 9216 MiB allocation failed with out of memory | Passed |
-| Per-Pod metrics | Approximately 6.70 GB attributed to each Pod | Passed |
+| Per-Pod metrics | 6394 MiB (about 6.24 GiB) attributed to each Pod | Passed |
+
+The recorded metric value `6.704594944e+09` bytes is exactly 6394 MiB,
+250 MiB above the explicit 6144 MiB CUDA allocation. Metrics can include CUDA
+context and runtime overhead; this experiment did not measure the breakdown.
+No raw measurement or acceptance result has been changed by expressing it in
+MiB/GiB rather than decimal GB.
+
+The workloads leave the fractioning compute mode at its default `time-slicing`.
+This differs from NVIDIA device-plugin time-slicing without memory enforcement.
+The evidence validates GPU-memory behavior, not `sm-sharing`, proportional
+compute performance, tenant security, or fault containment.
 
 ## Pod state evidence
 
@@ -65,6 +78,9 @@ fraction-8gi-over-limit   0/1     Completed   <gpu-node>
 
 `Completed` is the expected state because the probe exits with code 0 only when
 the oversized allocation is rejected.
+Specifically, `cudaMalloc` returns an out-of-memory error that the probe handles
+before exiting successfully. The observed state does not mean Kubernetes
+terminated an `OOMKilled` container.
 
 ## Cleanup evidence
 
