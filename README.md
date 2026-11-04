@@ -480,8 +480,8 @@ replace a live walkthrough or measure GPU performance.
 
 - Muru Bhaskaran, Sr. Specialist Solutions Architect, Amazon Web Services
 - Robert Ferrer, Specialist Solutions Architect, Amazon Web Services
-- [Eliuth Triana](https://www.linkedin.com/in/eliuthandres/), Developer Relations Manager - AI Platform Ecosystem & AWS Partnerships, NVIDIA
-- [Felipe Garcia](https://www.linkedin.com/in/felipecpg/), Sr. Solutions Architect - AI Cloud Services, NVIDIA
+- Eliuth Triana, Developer Relations Manager - AI Platform Ecosystem & AWS Partnerships, NVIDIA
+- Felipe Garcia, Sr. Solutions Architect - AI Cloud Services, NVIDIA
 
 ## Security
 
