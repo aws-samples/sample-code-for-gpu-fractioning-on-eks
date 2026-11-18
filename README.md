@@ -387,7 +387,10 @@ Delete the image only after confirming that it is not needed elsewhere:
 ## Validated component set
 
 The first validation ran on October 15, 2026 with driver 615.71.09. The complete
-walkthrough was revalidated on October 22, 2026 with the component set below:
+walkthrough was revalidated on October 22, 2026 with the component set below.
+A November 18, 2026 regression run confirmed the same results after the GPU
+taint change and added an EKS node monitoring agent check; see
+[validated results](docs/VALIDATED-RESULTS.md#november-18-2026-regression-run).
 
 | Component | Validated version |
 | --- | --- |
