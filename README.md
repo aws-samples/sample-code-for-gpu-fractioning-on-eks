@@ -426,9 +426,8 @@ after rebuilding or changing any component.
 - **Pre-provisioned GPU capacity is required.** This walkthrough does not
   configure or validate GPU-fraction-aware autoscaling. The fractional Pods
   select `kai-scheduler`, request no `nvidia.com/gpu` resource, and use a
-  `nodeSelector` that targets a node group fixed at one node. As a result, node
-  autoscalers cannot determine that these Pods need GPU capacity. Karpenter
-  support for secondary schedulers is an open feature request
+  `nodeSelector` that targets a node group fixed at one node. Karpenter support
+  for secondary schedulers is an open feature request
   ([kubernetes-sigs/karpenter#742](https://github.com/kubernetes-sigs/karpenter/issues/742)).
 - **Not available on Amazon EKS Auto Mode-managed nodes.** The custom image
   cannot run on Auto Mode-managed nodes, because Auto Mode selects and manages
