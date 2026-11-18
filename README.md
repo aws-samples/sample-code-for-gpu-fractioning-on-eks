@@ -387,7 +387,10 @@ Delete the image only after confirming that it is not needed elsewhere:
 ## Validated component set
 
 The first validation ran on October 15, 2026 with driver 615.71.09. The complete
-walkthrough was revalidated on October 22, 2026 with the component set below:
+walkthrough was revalidated on October 22, 2026 with the component set below.
+A November 18, 2026 regression run confirmed the same results after the GPU
+taint change and added an EKS node monitoring agent check; see
+[validated results](docs/VALIDATED-RESULTS.md#november-18-2026-regression-run).
 
 | Component | Validated version |
 | --- | --- |
@@ -417,6 +420,32 @@ image, and records it in the AMI tag and node-group metadata. This avoids
 assuming that NVIDIA's repository still serves an older patch, but it does
 not guarantee compatibility with future releases. Rerun the acceptance tests
 after rebuilding or changing any component.
+
+## Scope and limitations
+
+- **Pre-provisioned GPU capacity is required.** This walkthrough does not
+  configure or validate GPU-fraction-aware autoscaling. The fractional Pods
+  select `kai-scheduler`, request no `nvidia.com/gpu` resource, and use a
+  `nodeSelector` that targets a node group fixed at one node. Karpenter support
+  for secondary schedulers is an open feature request
+  ([kubernetes-sigs/karpenter#742](https://github.com/kubernetes-sigs/karpenter/issues/742)).
+- **Not available on Amazon EKS Auto Mode-managed nodes.** The custom image
+  cannot run on Auto Mode-managed nodes, because Auto Mode selects and manages
+  their AMI ([Amazon EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html)).
+  A cluster can [mix Auto Mode-managed nodes with managed node groups](https://docs.aws.amazon.com/eks/latest/userguide/eks-compute.html),
+  but this walkthrough was not validated in such a cluster.
+- **Karpenter was not validated.** Teams that use Karpenter can reference the
+  same custom AMI by ID in an `EC2NodeClass`. The autoscaling limit above still
+  applies.
+- **Custom image only while needed.** The custom image is needed only because
+  the EKS-optimized AL2023 NVIDIA AMI did not include the R615 driver branch at
+  the time of validation. Prefer an EKS-optimized NVIDIA AMI once the driver
+  that it selects for your GPU and the remaining host prerequisites meet the
+  GPU Fractioning Operator requirements. Check the driver versions in the
+  [Amazon EKS AMI releases](https://github.com/awslabs/amazon-eks-ami/releases).
+  The scripts currently require the R615 driver and metadata from the image
+  build (`scripts/03-add-gpu-node.sh`), so using a stock AMI also requires
+  script changes.
 
 ## Production considerations
 

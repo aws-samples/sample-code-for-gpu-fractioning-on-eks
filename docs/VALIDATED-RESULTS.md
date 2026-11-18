@@ -17,6 +17,56 @@ available from NVIDIA today. The October 15, 2026 results remain the original
 evidence on 615.71.09. Documentation clarifications do not constitute a new
 live validation.
 
+## November 18, 2026 regression run
+
+After the Amazon EKS service team review, the GPU node group taint changed
+from `nvidia.com/gpu=true:NoSchedule` to `nvidia.com/gpu:NoSchedule` (key and
+effect, no value), the convention used by Amazon EKS AI/ML examples. Every
+workload and daemon toleration in the sample already used `operator: Exists`.
+
+The walkthrough was rerun on November 18, 2026 in `us-east-2` from the commit
+that introduced this change. The run reused a custom AMI that this sample's
+`build-ami` step produced on October 26, 2026 with driver 615.71.10, so the
+image build itself was not repeated. Every other stage ran: cluster creation,
+GPU node group, GPU Operator and host inspection, whole-GPU baseline, KAI
+Scheduler and GPU Fractioning Operator installation, positive sharing test,
+per-Pod metrics, over-limit test, and cleanup. The GPU node reported the new
+taint (`{"effect":"NoSchedule","key":"nvidia.com/gpu"}`), and the host stack
+and every acceptance result matched the tables below.
+
+### EKS node monitoring agent
+
+The same run installed the EKS node monitoring agent add-on
+(`eks-node-monitoring-agent` `v1.7.7-eksbuild.1`) after GPU Fractioning
+Operator reported Ready, so MPS was active on the GPU node. Because GPU
+Operator runs a standalone DCGM host engine, the add-on was configured to use
+that host engine instead of its bundled `dcgm-server`, as described in
+[Use an existing NVIDIA DCGM host engine](https://docs.aws.amazon.com/eks/latest/userguide/node-monitoring-agent-configure.html#nma-configure-byo-dcgm):
+
+```json
+{
+  "dcgmAgent": { "enabled": false },
+  "nodeAgent": {
+    "dcgmAddress": "nvidia-dcgm.gpu-operator.svc:5555",
+    "dnsPolicy": "ClusterFirstWithHostNet"
+  }
+}
+```
+
+| Check | Observed result |
+| --- | --- |
+| Agent Pod on the GPU node | Running, 0 restarts |
+| Bundled `dcgm-server` Pods | None |
+| Agent log | `DCGM was initialized`, no warning or error entries |
+| `AcceleratedHardwareReady` | `True`, reason `NvidiaGPUIsReady` |
+| `KernelReady`, `NetworkingReady`, `StorageReady`, `ContainerRuntimeReady` | `True` |
+| Condition changes during sharing, metrics, and over-limit tests | None |
+
+This shows that the agent ran and reported healthy GPU conditions on the
+custom R615 image with MPS sharing during these tests. It does not show how
+the agent detects or reports GPU faults on this configuration, because no
+fault was injected, and automatic node repair was not enabled.
+
 ## Host stack
 
 | Check | Observed result |
