@@ -418,6 +418,26 @@ assuming that NVIDIA's repository still serves an older patch, but it does
 not guarantee compatibility with future releases. Rerun the acceptance tests
 after rebuilding or changing any component.
 
+## Scope and limitations
+
+- **Pre-provisioned GPU nodes are required.** The fractional Pods request no
+  `nvidia.com/gpu` resource, select `kai-scheduler`, and use a `nodeSelector`
+  that targets a node group fixed at one node. Because these Pods request no
+  `nvidia.com/gpu` resource, node autoscalers cannot determine that they need
+  GPU capacity. Karpenter support for secondary schedulers is an open feature
+  request ([kubernetes-sigs/karpenter#742](https://github.com/kubernetes-sigs/karpenter/issues/742)).
+- **Not available on Amazon EKS Auto Mode.** EKS Auto Mode selects and manages
+  the node AMI ([EKS Auto Mode](https://docs.aws.amazon.com/eks/latest/userguide/automode.html)),
+  and this sample requires a custom AL2023 image.
+- **Karpenter was not validated.** Teams that use Karpenter can reference the
+  same custom AMI by ID in an `EC2NodeClass`. The autoscaling limit above still
+  applies.
+- **Custom image only while needed.** The custom image is needed only because
+  the EKS-optimized AL2023 NVIDIA AMI did not include the R615 driver branch at
+  the time of validation. If that AMI includes R615 or newer, use it instead of
+  building a custom image. Check the driver versions in the
+  [Amazon EKS AMI releases](https://github.com/awslabs/amazon-eks-ami/releases).
+
 ## Production considerations
 
 - GPU memory fractioning is not a hard multi-tenant security boundary. Use

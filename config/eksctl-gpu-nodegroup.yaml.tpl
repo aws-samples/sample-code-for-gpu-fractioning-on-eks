@@ -23,7 +23,6 @@ managedNodeGroups:
       gpu-stack: gpu-operator
     taints:
       - key: nvidia.com/gpu
-        value: "true"
         effect: NoSchedule
     tags:
       node-role: runai-fractioning-gpu
